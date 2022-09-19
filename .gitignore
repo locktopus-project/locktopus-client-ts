@@ -1,0 +1,9 @@
+# VSCode
+.devcontainer
+.vscode
+
+# Build artifacts
+dist
+
+# node_modules
+node_modules
