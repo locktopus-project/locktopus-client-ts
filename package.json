@@ -2,6 +2,10 @@
   "name": "gearlock-client",
   "version": "0.3.0",
   "description": "javascript client for Gearlock",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xshkut/gearlock-client-js"
+  },
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
