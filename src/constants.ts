@@ -2,7 +2,7 @@
  * @internal
  */
 export const WS_NORMAL_CLOSE = 1000;
-export const WS_ABNORMAL_CLOSE = 1006;
+export const WS_ABNORMAL_CLOSE = 3000;
 
 export enum ACTION {
   LOCK = 'lock',

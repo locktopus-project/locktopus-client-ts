@@ -68,11 +68,42 @@ describe('Lifecycle', () => {
 
     await client1.release();
   });
+
   it('Locked resource should not be acquired immediately', async () => {
     await client1.lock({ path: ['a'], type: LOCK_TYPE.WRITE });
     await client2.lock({ path: ['a'], type: LOCK_TYPE.WRITE });
 
     strictEqual(client1.isAcquired(), true);
     strictEqual(client2.isAcquired(), false);
+
+    await client1.release();
+    await client2.release();
+  });
+
+  it('Release can be called even if not acquired', async () => {
+    await client1.lock({ path: ['a'], type: LOCK_TYPE.WRITE });
+    await client2.lock({ path: ['a'], type: LOCK_TYPE.WRITE });
+
+    strictEqual(client1.isAcquired(), true);
+    strictEqual(client2.isAcquired(), false);
+
+    await client1.release();
+    await client2.release();
+  });
+
+  it('Locked resource should be acquired after locker released', async () => {
+    await client1.lock({ path: ['a'], type: LOCK_TYPE.WRITE });
+    await client2.lock({ path: ['a'], type: LOCK_TYPE.WRITE });
+
+    strictEqual(client1.isAcquired(), true);
+    strictEqual(client2.isAcquired(), false);
+
+    await client1.release();
+    strictEqual(client2.isAcquired(), false);
+
+    await client2.acquire();
+    strictEqual(client2.isAcquired(), true);
+
+    await client2.release();
   });
 });

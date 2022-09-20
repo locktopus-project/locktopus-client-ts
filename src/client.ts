@@ -106,6 +106,9 @@ export class GearlockClient {
         `Unexpected response state: ${response.state}. Expected: ${STATE.READY}`,
       );
     }
+
+    this._currentState = response.state;
+    this._lockId = response.id;
   }
 
   async acquire() {
@@ -128,6 +131,15 @@ export class GearlockClient {
         `Unexpected response state: ${response.state}. Expected: ${STATE.ACQUIRED}`,
       );
     }
+
+    if (this._lockId != null && response.id !== this._lockId) {
+      this.raiseProtocolError(
+        `Unexpected lock id: ${response.id}. Expected: ${this._lockId}`,
+      );
+    }
+
+    this._currentState = response.state;
+    this._lockId = response.id;
   }
 
   async release() {
@@ -141,7 +153,18 @@ export class GearlockClient {
       action: ACTION.RELEASE,
     };
 
-    const response = await this.doRequest(msg);
+    let response = await this.doRequest(msg);
+
+    if (
+      response.action === ACTION.LOCK &&
+      response.id === this._lockId &&
+      response.state === STATE.ACQUIRED &&
+      this._currentState === STATE.ENQUEUED
+    ) {
+      // This is the response to the previous Lock() call, skip it
+
+      response = await this.readResponse();
+    }
 
     if (response.id !== this._lockId) {
       this.raiseProtocolError(
@@ -160,6 +183,15 @@ export class GearlockClient {
         `Unexpected response state: ${response.state}. Expected: ${STATE.READY}`,
       );
     }
+
+    if (this._lockId != null && response.id !== this._lockId) {
+      this.raiseProtocolError(
+        `Unexpected lock id: ${response.id}. Expected: ${this._lockId}`,
+      );
+    }
+
+    this._currentState = response.state;
+    this._lockId = response.id;
   }
 
   private raiseProtocolError(msg: string) {
@@ -217,9 +249,6 @@ export class GearlockClient {
 
     let nextResponse = this.responseQueue.shift();
     if (nextResponse) {
-      this._currentState = nextResponse.state;
-      this._lockId = nextResponse.id;
-
       return nextResponse;
     }
 
@@ -232,9 +261,6 @@ export class GearlockClient {
       );
     }
 
-    this._currentState = nextResponse.state;
-    this._lockId = nextResponse.id;
-
     return nextResponse;
   }
 
@@ -245,11 +271,7 @@ export class GearlockClient {
 
     const response = await this.readResponse();
 
-    if (response.id !== this._lockId) {
-      throw new Error(
-        `Unexpected lock id: ${response.id}. Expected: ${this._lockId}`,
-      );
-    }
+    this.checkError();
 
     return response;
   }
