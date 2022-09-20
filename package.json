@@ -2,12 +2,12 @@
   "name": "gearlock-client",
   "version": "0.2.0",
   "description": "javascript client for Gearlock",
-  "main": "build/index.js",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "test": "jest"
   },
-  "author": "",
+  "author": "xshkut",
   "license": "ISC",
   "devDependencies": {
     "@types/jest": "^29.0.3",

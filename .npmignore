@@ -1,0 +1,12 @@
+# VSCode
+.devcontainer
+.vscode
+
+# tests
+jest.config.js
+tests
+
+# other dev stuff
+.prettierrc.json
+.gitignore
+.tsconfig.json
