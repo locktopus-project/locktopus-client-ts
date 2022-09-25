@@ -1,5 +1,7 @@
 // Before running tests, ensure GearLock server is running on 127.0.0.1:9009
 
+import { WebSocket as LibWebsocket } from 'ws';
+
 import { GearlockClient } from '../src/client';
 import { strictEqual } from 'assert';
 import { LOCK_TYPE } from '../src/constants';
@@ -10,6 +12,7 @@ const SERVER_PORT = 9009;
 describe('Connection by string', () => {
   const ns = 'default';
   const client = new GearlockClient(
+    LibWebsocket,
     `ws://${SERVER_HOST}:${SERVER_PORT}/v1?namespace=${ns}`,
   );
 
@@ -25,7 +28,7 @@ describe('Connection by string', () => {
 describe('Connection by parameters', () => {
   const ns = 'default';
 
-  const client = new GearlockClient({
+  const client = new GearlockClient(LibWebsocket, {
     host: SERVER_HOST,
     port: SERVER_PORT,
     namespace: ns,
@@ -45,9 +48,11 @@ describe('Lifecycle', () => {
   const ns = 'test-0';
 
   const client1 = new GearlockClient(
+    LibWebsocket,
     `ws://${SERVER_HOST}:${SERVER_PORT}/v1?namespace=${ns}`,
   );
   const client2 = new GearlockClient(
+    LibWebsocket,
     `ws://${SERVER_HOST}:${SERVER_PORT}/v1?namespace=${ns}`,
   );
 

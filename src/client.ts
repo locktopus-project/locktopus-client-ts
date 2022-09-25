@@ -1,4 +1,5 @@
-import { EventEmitter, WebSocket } from 'ws';
+import type { WebSocket as LibWebsocket } from 'ws';
+import { EventEmitter } from 'events';
 import {
   ACTION,
   EVENT_NEXT,
@@ -13,18 +14,31 @@ import {
   ResponseMessage,
 } from './types';
 
+type WebsocketClass =
+  | { new (url: string): LibWebsocket }
+  | { new (url: string): WebSocket };
+
+type WebSocketInstance = LibWebsocket | WebSocket;
+
 export class GearlockClient {
   private address: string;
 
   private responseQueue: ResponseMessage[] = [];
   private ee = new EventEmitter();
-  private ws?: WebSocket;
+  private wsConstructor: WebsocketClass;
+  private ws?: WebSocketInstance;
   private wsError?: Error;
 
   private _currentState = STATE.READY;
   private _lockId?: string;
 
-  constructor(options: string | ConnectionOptions) {
+  /**
+   * @param wsConstructor Provide WebSocket from 'ws' package (for NodeJS) or WebSocket from dom lib (for browser)
+   */
+  constructor(
+    wsConstructor: WebsocketClass,
+    options: string | ConnectionOptions,
+  ) {
     if (typeof options === 'string') {
       this.address = options;
     } else {
@@ -32,6 +46,8 @@ export class GearlockClient {
         options.port
       }/v1?namespace=${options.namespace}`;
     }
+
+    this.wsConstructor = wsConstructor;
   }
 
   getState() {
@@ -56,18 +72,19 @@ export class GearlockClient {
 
   async connect() {
     this.wsError = undefined;
-    this.ws = new WebSocket(this.address);
+    this.ws = new this.wsConstructor(this.address);
 
     return new Promise<void>((resolve, reject) => {
-      this.ws!.once('open', () => {
+      this.ws!.onopen = () => {
         this.handleConnectionErrors();
         this.handleIncomingMessages();
 
         resolve();
-      });
-      this.ws!.once('error', (err) => {
+      };
+
+      this.ws!.onerror = (err: any) => {
         reject(err);
-      });
+      };
     });
   }
 
@@ -201,9 +218,9 @@ export class GearlockClient {
   }
 
   private handleIncomingMessages() {
-    this.ws!.on('message', (data) => {
+    this.ws!.onmessage = (event: MessageEvent) => {
       try {
-        const msg = JSON.parse(data.toString()) as ResponseMessage;
+        const msg = JSON.parse(event.data.toString()) as ResponseMessage;
 
         this.responseQueue.push(msg);
 
@@ -213,25 +230,19 @@ export class GearlockClient {
           `Cannot parse response from server: ${err?.message || err}`,
         );
       }
-    });
+    };
   }
 
   private handleConnectionErrors() {
-    this.ws!.once('error', (err) => {
+    this.ws!.onerror = (err: any) => {
       this.wsError = err;
-    });
+    };
 
-    this.ws!.once('close', (code, reason) => {
+    this.ws!.onclose = (event: CloseEvent) => {
       this.wsError = new Error(
-        `Connection closed with code ${code}: ${reason}`,
+        `Connection closed with code ${event.code}: ${event.reason}`,
       );
-    });
-
-    this.ws!.once('unexpected-response', (req, res) => {
-      this.wsError = new Error(
-        `Unexpected response from server: ${res.statusCode} ${res.statusMessage}`,
-      );
-    });
+    };
   }
 
   private checkError() {
