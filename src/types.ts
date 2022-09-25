@@ -1,5 +1,8 @@
 import { ACTION, LOCK_TYPE, STATE } from './constants';
 
+/**
+ * @internal
+ */
 export type RequestMessage = {
   action: ACTION;
   Resources?: Resource[];
@@ -10,6 +13,9 @@ export type Resource = {
   path: string[];
 };
 
+/**
+ * @internal
+ */
 export type ResponseMessage = {
   id: string;
   action: ACTION;
