@@ -104,8 +104,6 @@ export class GearlockClient {
   }
 
   close() {
-    this.checkError();
-
     this.ws!.close(WS_NORMAL_CLOSE);
 
     this.initialize();
