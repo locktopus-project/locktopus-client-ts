@@ -18,7 +18,11 @@ export enum ACTION {
 /**
  * State of the connection
  */
-export enum STATE {
+export enum CLIENT_STATE {
+  /**
+   * Connection is being established
+   */
+  CONNECTING = 'connecting',
   /**
    * Connection is ready for making a lock
    */
@@ -31,6 +35,10 @@ export enum STATE {
    * Connection has acquired the lock. Do what you need and then release it
    */
   ACQUIRED = 'acquired',
+  /**
+   * Connection is closed
+   */
+  NOT_CONNECTED = 'not_connected',
 }
 
 /**

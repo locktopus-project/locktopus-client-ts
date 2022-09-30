@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import {
   ACTION,
   EVENT_NEXT,
-  STATE,
+  CLIENT_STATE,
   WS_ABNORMAL_CLOSE,
   WS_NORMAL_CLOSE,
 } from './constants';
@@ -29,7 +29,7 @@ export class GearlockClient {
   private ws?: WebSocketInstance;
   private wsError?: Error;
 
-  private _currentState = STATE.READY;
+  private _currentState = CLIENT_STATE.NOT_CONNECTED;
   private _lockId?: string;
 
   /**
@@ -39,6 +39,8 @@ export class GearlockClient {
     wsConstructor: WebsocketClass,
     options: string | ConnectionOptions,
   ) {
+    this.initialize();
+
     if (typeof options === 'string') {
       this.address = options;
     } else {
@@ -50,7 +52,16 @@ export class GearlockClient {
     this.wsConstructor = wsConstructor;
   }
 
-  getState() {
+  private initialize() {
+    this.responseQueue = [];
+    this.ee = new EventEmitter();
+    this.ws = undefined;
+    this.wsError = undefined;
+    this._currentState = CLIENT_STATE.NOT_CONNECTED;
+    this._lockId = undefined;
+  }
+
+  getState(): CLIENT_STATE {
     return this._currentState;
   }
 
@@ -59,7 +70,7 @@ export class GearlockClient {
       throw new Error('Not initialised');
     }
 
-    return this._currentState === STATE.ACQUIRED;
+    return this._currentState === CLIENT_STATE.ACQUIRED;
   }
 
   getLockId() {
@@ -74,10 +85,14 @@ export class GearlockClient {
     this.wsError = undefined;
     this.ws = new this.wsConstructor(this.address);
 
+    this._currentState = CLIENT_STATE.CONNECTING;
+
     return new Promise<void>((resolve, reject) => {
       this.ws!.onopen = () => {
         this.handleConnectionErrors();
         this.handleIncomingMessages();
+
+        this._currentState = CLIENT_STATE.READY;
 
         resolve();
       };
@@ -92,6 +107,8 @@ export class GearlockClient {
     this.checkError();
 
     this.ws!.close(WS_NORMAL_CLOSE);
+
+    this.initialize();
   }
 
   async lock(...resources: Resource[]): Promise<void> {
@@ -101,7 +118,7 @@ export class GearlockClient {
       throw new Error('No resources provided');
     }
 
-    if (this._currentState !== STATE.READY) {
+    if (this._currentState !== CLIENT_STATE.READY) {
       throw new Error(`Cannot lock in current state: ${this._currentState}`);
     }
 
@@ -118,9 +135,9 @@ export class GearlockClient {
       );
     }
 
-    if (response.state === STATE.READY) {
+    if (response.state === CLIENT_STATE.READY) {
       this.raiseProtocolError(
-        `Unexpected response state: ${response.state}. Expected: ${STATE.READY}`,
+        `Unexpected response state: ${response.state}. Expected: ${CLIENT_STATE.READY}`,
       );
     }
 
@@ -131,7 +148,7 @@ export class GearlockClient {
   async acquire() {
     this.checkError();
 
-    if (this._currentState === STATE.ACQUIRED) {
+    if (this._currentState === CLIENT_STATE.ACQUIRED) {
       return;
     }
 
@@ -143,9 +160,9 @@ export class GearlockClient {
       );
     }
 
-    if (response.state !== STATE.ACQUIRED) {
+    if (response.state !== CLIENT_STATE.ACQUIRED) {
       this.raiseProtocolError(
-        `Unexpected response state: ${response.state}. Expected: ${STATE.ACQUIRED}`,
+        `Unexpected response state: ${response.state}. Expected: ${CLIENT_STATE.ACQUIRED}`,
       );
     }
 
@@ -162,7 +179,7 @@ export class GearlockClient {
   async release() {
     this.checkError();
 
-    if (this._currentState === STATE.READY) {
+    if (this._currentState === CLIENT_STATE.READY) {
       throw new Error(`Cannot release in current state: ${this._currentState}`);
     }
 
@@ -175,8 +192,8 @@ export class GearlockClient {
     if (
       response.action === ACTION.LOCK &&
       response.id === this._lockId &&
-      response.state === STATE.ACQUIRED &&
-      this._currentState === STATE.ENQUEUED
+      response.state === CLIENT_STATE.ACQUIRED &&
+      this._currentState === CLIENT_STATE.ENQUEUED
     ) {
       // This is the response to the previous Lock() call, skip it
 
@@ -195,9 +212,9 @@ export class GearlockClient {
       );
     }
 
-    if (response.state !== STATE.READY) {
+    if (response.state !== CLIENT_STATE.READY) {
       this.raiseProtocolError(
-        `Unexpected response state: ${response.state}. Expected: ${STATE.READY}`,
+        `Unexpected response state: ${response.state}. Expected: ${CLIENT_STATE.READY}`,
       );
     }
 

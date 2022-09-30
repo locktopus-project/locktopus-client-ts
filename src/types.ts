@@ -1,4 +1,4 @@
-import { ACTION, LOCK_TYPE, STATE } from './constants';
+import { ACTION, LOCK_TYPE, CLIENT_STATE } from './constants';
 
 /**
  * @internal
@@ -19,7 +19,7 @@ export type Resource = {
 export type ResponseMessage = {
   id: string;
   action: ACTION;
-  state: STATE;
+  state: CLIENT_STATE;
 };
 
 export type ConnectionOptions = {
