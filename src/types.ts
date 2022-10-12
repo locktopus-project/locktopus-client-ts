@@ -1,4 +1,10 @@
-import { ACTION, LOCK_TYPE, CLIENT_STATE } from './constants';
+import {
+  ACTION,
+  LOCK_TYPE,
+  CLIENT_STATE,
+  PAYLOAD_RELEASE,
+  PAYLOAD_RESPONSE,
+} from './constants';
 
 /**
  * @internal
@@ -28,3 +34,8 @@ export type ConnectionOptions = {
   namespace: string;
   secure: boolean;
 };
+
+/**
+ * @internal
+ */
+export type EVENT_PAYLOAD = typeof PAYLOAD_RELEASE | typeof PAYLOAD_RESPONSE;

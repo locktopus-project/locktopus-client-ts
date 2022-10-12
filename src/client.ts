@@ -6,9 +6,13 @@ import {
   CLIENT_STATE,
   WS_ABNORMAL_CLOSE,
   WS_NORMAL_CLOSE,
+  PAYLOAD_RELEASE,
+  PAYLOAD_RESPONSE,
+  ERROR_NO_RESPONSE,
 } from './constants';
 import {
   ConnectionOptions,
+  EVENT_PAYLOAD,
   RequestMessage,
   Resource,
   ResponseMessage,
@@ -23,11 +27,14 @@ type WebSocketInstance = LibWebsocket | WebSocket;
 export class GearlockClient {
   private address: string;
 
-  private responseQueue: ResponseMessage[] = [];
   private ee = new EventEmitter();
+  private responseQueue: ResponseMessage[] = [];
+
   private wsConstructor: WebsocketClass;
   private ws?: WebSocketInstance;
   private wsError?: Error;
+
+  private released = false;
 
   private _currentState = CLIENT_STATE.NOT_CONNECTED;
   private _lockId?: string;
@@ -65,6 +72,9 @@ export class GearlockClient {
     return this._currentState;
   }
 
+  /**
+   * Returns true if last lock has been successfully acquired. If returned false, use acquire()
+   */
   isAcquired() {
     if (!this.ws) {
       throw new Error('Not initialised');
@@ -73,6 +83,9 @@ export class GearlockClient {
     return this._currentState === CLIENT_STATE.ACQUIRED;
   }
 
+  /**
+   * Returns lock ID assigned by server to this connection. Valid only when connected
+   */
   getLockId() {
     if (!this.ws) {
       throw new Error('Not initialised');
@@ -81,6 +94,9 @@ export class GearlockClient {
     return this._lockId!;
   }
 
+  /**
+   * Establish connection to server
+   */
   async connect() {
     this.wsError = undefined;
     this.ws = new this.wsConstructor(this.address);
@@ -103,14 +119,22 @@ export class GearlockClient {
     });
   }
 
+  /**
+   * Close connection. After that, client may connect() again
+   */
   close() {
-    this.ws!.close(WS_NORMAL_CLOSE);
+    this.ws?.close(WS_NORMAL_CLOSE);
 
     this.initialize();
   }
 
-  async lock(...resources: Resource[]): Promise<void> {
+  /**
+   * Lock resources. If resolves with true, the lock is acquired. Otherwise, use acquire(). After that you may use specified resources without data races.
+   */
+  async lock(...resources: Resource[]): Promise<boolean> {
     this.checkError();
+
+    this.released = false;
 
     if (resources.length === 0) {
       throw new Error('No resources provided');
@@ -125,7 +149,13 @@ export class GearlockClient {
       Resources: resources,
     };
 
-    const response = await this.doRequest(msg);
+    this.sendRequest(msg);
+    await this.waitForResponseOrEvent();
+    const response = this.consumeResponse();
+
+    if (!response) {
+      throw new Error(ERROR_NO_RESPONSE);
+    }
 
     if (response.action !== ACTION.LOCK) {
       this.raiseProtocolError(
@@ -141,16 +171,30 @@ export class GearlockClient {
 
     this._currentState = response.state;
     this._lockId = response.id;
+
+    return response.state === CLIENT_STATE.ACQUIRED;
   }
 
-  async acquire() {
+  /**
+   * Wait for last lock to be acquired. If the lock is already acquired, returns true immediately (no-op). If returned false, that means the lock has been released by this client so the lock is not acquired anymore.
+   */
+  async acquire(): Promise<boolean> {
     this.checkError();
 
     if (this._currentState === CLIENT_STATE.ACQUIRED) {
-      return;
+      return true;
     }
 
-    const response = await this.readResponse();
+    const event = await this.waitForResponseOrEvent();
+
+    if (event === PAYLOAD_RELEASE) {
+      return false;
+    }
+
+    const response = this.consumeResponse();
+    if (!response) {
+      throw new Error(ERROR_NO_RESPONSE);
+    }
 
     if (response.action !== ACTION.LOCK) {
       this.raiseProtocolError(
@@ -172,8 +216,11 @@ export class GearlockClient {
 
     this._currentState = response.state;
     this._lockId = response.id;
+
+    return true;
   }
 
+  // Release last enqueues or acquired lock. After that, you may lock() again
   async release() {
     this.checkError();
 
@@ -181,21 +228,35 @@ export class GearlockClient {
       throw new Error(`Cannot release in current state: ${this._currentState}`);
     }
 
+    this.released = true;
+    this.ee.emit(EVENT_NEXT, PAYLOAD_RELEASE);
+
     const msg: RequestMessage = {
       action: ACTION.RELEASE,
     };
 
-    let response = await this.doRequest(msg);
+    this.sendRequest(msg);
+    await this.waitForResponseOrEvent();
+    let response = this.consumeResponse();
+
+    if (!response) {
+      throw new Error(ERROR_NO_RESPONSE);
+    }
 
     if (
-      response.action === ACTION.LOCK &&
       response.id === this._lockId &&
-      response.state === CLIENT_STATE.ACQUIRED &&
-      this._currentState === CLIENT_STATE.ENQUEUED
+      response.action === ACTION.LOCK &&
+      response.state === CLIENT_STATE.ACQUIRED
     ) {
       // This is the response to the previous Lock() call, skip it
 
-      response = await this.readResponse();
+      await this.waitForResponseOrEvent();
+
+      response = this.consumeResponse();
+
+      if (!response) {
+        throw new Error(ERROR_NO_RESPONSE);
+      }
     }
 
     if (response.id !== this._lockId) {
@@ -239,7 +300,7 @@ export class GearlockClient {
 
         this.responseQueue.push(msg);
 
-        this.ee.emit(EVENT_NEXT);
+        this.ee.emit(EVENT_NEXT, PAYLOAD_RESPONSE);
       } catch (err: any) {
         this.wsError = new Error(
           `Cannot parse response from server: ${err?.message || err}`,
@@ -270,34 +331,10 @@ export class GearlockClient {
     }
   }
 
-  private async readResponse(): Promise<ResponseMessage> {
+  private consumeResponse(): ResponseMessage | undefined {
     this.checkError();
 
-    let nextResponse = this.responseQueue.shift();
-    if (nextResponse) {
-      return nextResponse;
-    }
-
-    await this.waitForResponse();
-
-    nextResponse = this.responseQueue.shift();
-    if (!nextResponse) {
-      throw new Error(
-        'No response after waiting. This is probably a race condition. Please, reviewe your logic',
-      );
-    }
-
-    return nextResponse;
-  }
-
-  private async doRequest(msg: RequestMessage): Promise<ResponseMessage> {
-    this.checkError();
-
-    this.sendRequest(msg);
-
-    const response = await this.readResponse();
-
-    this.checkError();
+    const response = this.responseQueue.shift();
 
     return response;
   }
@@ -306,10 +343,14 @@ export class GearlockClient {
     this.ws!.send(JSON.stringify(msg));
   }
 
-  private async waitForResponse(): Promise<void> {
-    await new Promise<void>((resolve) => {
-      this.ee.once(EVENT_NEXT, () => {
-        resolve();
+  private async waitForResponseOrEvent(): Promise<EVENT_PAYLOAD> {
+    if (this.responseQueue.length > 0) {
+      return PAYLOAD_RESPONSE;
+    }
+
+    return await new Promise<EVENT_PAYLOAD>((resolve) => {
+      this.ee.once(EVENT_NEXT, (event: EVENT_PAYLOAD) => {
+        resolve(event);
       });
     });
   }

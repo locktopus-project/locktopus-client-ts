@@ -53,3 +53,7 @@ export enum LOCK_TYPE {
  * @internal
  */
 export const EVENT_NEXT = 'next';
+export const PAYLOAD_RELEASE = 'released';
+export const PAYLOAD_RESPONSE = 'response';
+
+export const ERROR_NO_RESPONSE = `No response read after waiting. Make sure to call methods in proper order`;
