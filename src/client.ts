@@ -24,7 +24,7 @@ type WebsocketClass =
 
 type WebSocketInstance = LibWebsocket | WebSocket;
 
-export class GearlockClient {
+export class LocktopusClient {
   private address: string;
 
   private ee = new EventEmitter();
