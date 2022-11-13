@@ -16,6 +16,7 @@ import {
   RequestMessage,
   Resource,
   ResponseMessage,
+  WebsocketCloseEvent,
 } from './types';
 
 type WebsocketClass =
@@ -92,6 +93,13 @@ export class LocktopusClient {
     }
 
     return this._lockId!;
+  }
+
+  // Add handler to 'close' event of current connection. If not connected, throws error. This is not middleware
+  async onConnectionClose(handler: (event: WebsocketCloseEvent) => void) {
+    this.checkError();
+
+    this.ws!.onclose = handler;
   }
 
   /**

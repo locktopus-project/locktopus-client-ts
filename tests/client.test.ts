@@ -5,6 +5,7 @@ import { WebSocket as LibWebsocket } from 'ws';
 import { LocktopusClient } from '../src/client';
 import { strictEqual } from 'assert';
 import { LOCK_TYPE } from '../src/constants';
+import { WebsocketCloseEvent } from '../src/types';
 
 const SERVER_HOST = 'server';
 const SERVER_PORT = 9009;
@@ -46,13 +47,15 @@ describe('Connection by parameters', () => {
 
 const ns = 'test-0';
 
-const makeClient = async () => {
+const makeClient = async (onClose?: (e: WebsocketCloseEvent) => void) => {
   const client = new LocktopusClient(
     LibWebsocket,
     `ws://${SERVER_HOST}:${SERVER_PORT}/v1?namespace=${ns}`,
   );
 
   await client.connect();
+
+  onClose && client.onConnectionClose(onClose);
 
   return client;
 };
@@ -184,5 +187,19 @@ describe('Lifecycle', () => {
 
     client1.close();
     client2.close();
+  });
+});
+
+describe('Connection', () => {
+  it('onClose works with manual disconnect', async () => {
+    await new Promise<void>(async (res, rej) => {
+      const client1 = await makeClient(() => {
+        console.log('nadler');
+
+        res();
+      });
+
+      client1.close();
+    });
   });
 });

@@ -39,3 +39,9 @@ export type ConnectionOptions = {
  * @internal
  */
 export type EVENT_PAYLOAD = typeof PAYLOAD_RELEASE | typeof PAYLOAD_RESPONSE;
+
+export type WebsocketCloseEvent = {
+  code: number;
+  reason: string;
+  wasClean: boolean;
+};
