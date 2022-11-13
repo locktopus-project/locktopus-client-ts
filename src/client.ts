@@ -35,8 +35,6 @@ export class LocktopusClient {
   private ws?: WebSocketInstance;
   private wsError?: Error;
 
-  private released = false;
-
   private _currentState = CLIENT_STATE.NOT_CONNECTED;
   private _lockId?: string;
 
@@ -106,6 +104,8 @@ export class LocktopusClient {
    * Establish connection to server
    */
   async connect() {
+    this.initialize();
+
     this.wsError = undefined;
     this.ws = new this.wsConstructor(this.address);
 
@@ -141,8 +141,6 @@ export class LocktopusClient {
    */
   async lock(...resources: Resource[]): Promise<boolean> {
     this.checkError();
-
-    this.released = false;
 
     if (resources.length === 0) {
       throw new Error('No resources provided');
@@ -236,7 +234,6 @@ export class LocktopusClient {
       throw new Error(`Cannot release in current state: ${this._currentState}`);
     }
 
-    this.released = true;
     this.ee.emit(EVENT_NEXT, PAYLOAD_RELEASE);
 
     const msg: RequestMessage = {
