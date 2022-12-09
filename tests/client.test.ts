@@ -5,7 +5,7 @@ import { WebSocket as LibWebsocket } from 'ws';
 import { LocktopusClient } from '../src/client';
 import { strictEqual } from 'assert';
 import { LOCK_TYPE } from '../src/constants';
-import { WebsocketCloseEvent } from '../src/types';
+import { WebsocketCloseEvent, WSMessage } from '../src/types';
 
 const SERVER_HOST = 'server';
 const SERVER_PORT = 9009;
@@ -207,7 +207,7 @@ describe('Connection', () => {
 
 describe('onMessage', () => {
   it('Should be called on each incoming/outgoing message', async () => {
-    const messages: MessageEvent[] = [];
+    const messages: WSMessage[] = [];
 
     const client1 = await makeClient();
 

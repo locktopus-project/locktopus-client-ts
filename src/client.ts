@@ -303,7 +303,7 @@ export class LocktopusClient {
   }
 
   // Add handler for incoming and outgoing protocol messages. This is not middleware. Can be used for tracing the communication
-  onMessage(handler: (event: MessageEvent) => void) {
+  onMessage(handler: (event: WSMessage) => void) {
     this.ee.on(EVENT_MSG, handler);
   }
 
