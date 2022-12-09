@@ -1,4 +1,4 @@
-import type { WebSocket as LibWebsocket } from 'ws';
+import type { ErrorEvent, WebSocket as LibWebsocket } from 'ws';
 import { EventEmitter } from 'events';
 import {
   ACTION,
@@ -9,6 +9,9 @@ import {
   PAYLOAD_RELEASE,
   PAYLOAD_RESPONSE,
   ERROR_NO_RESPONSE,
+  EVENT_MSG,
+  NAMESPACE_PARAMETER_NAME,
+  ABANDON_TIMEOUT_PARAMETER_NAME,
 } from './constants';
 import {
   ConnectionOptions,
@@ -17,6 +20,7 @@ import {
   Resource,
   ResponseMessage,
   WebsocketCloseEvent,
+  WSMessage,
 } from './types';
 
 type WebsocketClass =
@@ -52,7 +56,11 @@ export class LocktopusClient {
     } else {
       this.address = `${options.secure ? 'wss' : 'ws'}://${options.host}:${
         options.port
-      }/v1?namespace=${options.namespace}`;
+      }/v1?${NAMESPACE_PARAMETER_NAME}=${options.namespace}`;
+
+      if (options.abandonTimeoutMs != null) {
+        this.address += `&${ABANDON_TIMEOUT_PARAMETER_NAME}=${options.abandonTimeoutMs}`;
+      }
     }
 
     this.wsConstructor = wsConstructor;
@@ -121,8 +129,10 @@ export class LocktopusClient {
         resolve();
       };
 
-      this.ws!.onerror = (err: any) => {
-        reject(err);
+      this.ws!.onerror = (err: ErrorEvent) => {
+        reject(
+          new Error(`Handshake to ${this.address} failed: ${err.message}`),
+        );
       };
     });
   }
@@ -292,6 +302,11 @@ export class LocktopusClient {
     this._lockId = response.id;
   }
 
+  // Add handler for incoming and outgoing protocol messages. This is not middleware. Can be used for tracing the communication
+  onMessage(handler: (event: MessageEvent) => void) {
+    this.ee.on(EVENT_MSG, handler);
+  }
+
   private raiseProtocolError(msg: string) {
     this.ws!.close(WS_ABNORMAL_CLOSE);
 
@@ -301,7 +316,14 @@ export class LocktopusClient {
   private handleIncomingMessages() {
     this.ws!.onmessage = (event: MessageEvent) => {
       try {
-        const msg = JSON.parse(event.data.toString()) as ResponseMessage;
+        const data = event.data.toString();
+
+        this.ee.emit(EVENT_MSG, {
+          data: data,
+          direction: 'in',
+        } as WSMessage);
+
+        const msg = JSON.parse(data) as ResponseMessage;
 
         this.responseQueue.push(msg);
 
@@ -345,7 +367,14 @@ export class LocktopusClient {
   }
 
   private sendRequest(msg: RequestMessage) {
-    this.ws!.send(JSON.stringify(msg));
+    const data = JSON.stringify(msg);
+
+    this.ws!.send(data);
+
+    this.ee.emit(EVENT_MSG, {
+      data,
+      direction: 'out',
+    } as WSMessage);
   }
 
   private async waitForResponseOrEvent(): Promise<EVENT_PAYLOAD> {

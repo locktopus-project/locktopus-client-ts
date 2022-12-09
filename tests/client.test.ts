@@ -34,6 +34,7 @@ describe('Connection by parameters', () => {
     port: SERVER_PORT,
     namespace: ns,
     secure: false,
+    abandonTimeoutMs: 10000,
   });
 
   afterAll(() => {
@@ -191,7 +192,7 @@ describe('Lifecycle', () => {
 });
 
 describe('Connection', () => {
-  it('onClose works with manual disconnect', async () => {
+  it('onConnectionCLose works with manual disconnect', async () => {
     await new Promise<void>(async (res, rej) => {
       const client1 = await makeClient(() => {
         console.log('nadler');
@@ -201,5 +202,24 @@ describe('Connection', () => {
 
       client1.close();
     });
+  });
+});
+
+describe('onMessage', () => {
+  it('Should be called on each incoming/outgoing message', async () => {
+    const messages: MessageEvent[] = [];
+
+    const client1 = await makeClient();
+
+    client1.onMessage((msg) => {
+      messages.push(msg);
+    });
+
+    await client1.lock({ path: ['a'], type: LOCK_TYPE.WRITE });
+    await client1.release();
+
+    client1.close();
+
+    strictEqual(messages.length, 4);
   });
 });

@@ -33,6 +33,7 @@ export type ConnectionOptions = {
   port: number;
   namespace: string;
   secure: boolean;
+  abandonTimeoutMs?: number;
 };
 
 /**
@@ -44,4 +45,9 @@ export type WebsocketCloseEvent = {
   code: number;
   reason: string;
   wasClean: boolean;
+};
+
+export type WSMessage = {
+  direction: 'in' | 'out';
+  data: string;
 };
