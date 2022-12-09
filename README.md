@@ -4,6 +4,12 @@ This is a client for [Locktopus](https://github.com/locktopus-project/locktopus-
 
 It is supposed to be used in Node.js, though is also compatible with the browser.
 
+## Installation
+
+```bash
+npm install locktopus-client
+```
+
 ## Testing
 
 `npm test` is supposed to be called with a Locktopus instance running on `server:9009`:
