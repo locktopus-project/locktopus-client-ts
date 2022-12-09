@@ -11,7 +11,7 @@ import {
  */
 export type RequestMessage = {
   action: ACTION;
-  Resources?: Resource[];
+  resources?: Resource[];
 };
 
 export type Resource = {

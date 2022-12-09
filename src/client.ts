@@ -162,7 +162,7 @@ export class LocktopusClient {
 
     const msg: RequestMessage = {
       action: ACTION.LOCK,
-      Resources: resources,
+      resources: resources,
     };
 
     this.sendRequest(msg);
